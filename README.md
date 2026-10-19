@@ -29,7 +29,7 @@ symbol, decimals and total supply, plus the balance of each holder):
 With 8 clients at once, the node served 1,869 reads per second as single
 queries and 11,082 through one `aggregate` per page of 251 holders. Small views
 of the genesis contracts gave the same picture: 4× faster at 10 reads, 25× at
-256. The multicall's own cost is about 4,500 gas per call, so 256 reads use
+256. The multicall's own cost is about 4,600 gas per call, so 256 reads use
 0.04% of a query's gas bound, and every batched read returned the same bytes
 as the single query. Times are medians of six runs on one machine; the ratios
 matter more than the milliseconds.
@@ -334,8 +334,8 @@ tests, the rest from the node:
 
 | | Gas |
 | --- | ---: |
-| `aggregate([])` | 3,595 |
-| `aggregate([echo; 256])` | 1,175,033 (4,572 per call) |
+| `aggregate([])` | 3,629 |
+| `aggregate([echo; 256])` | 1,188,120 (4,623 per call) |
 | each reply byte | about 70 |
 | setup before the first call | 6,942 |
 | transfer `account(pk)`, measured inside a batch | 9,560 |
@@ -376,8 +376,8 @@ harmless, because with no `init` and no state every deployment at that ID is
 the same contract. Check the ID in the deployment receipt before publishing
 it.
 
-The Wasm is 50,404 bytes, so the bytecode charge is 5,040,400 gas (100 gas per
-byte). The deployment spent 6,862,900 gas on a local Rusk 1.7.1 node, 13.726
+The Wasm is 50,745 bytes, so the bytecode charge is 5,074,500 gas (100 gas per
+byte). The deployment spent 6,897,000 gas on a local Rusk 1.7.1 node, 13.794
 DUSK at 2,000 Lux per gas, Rusk's default minimum gas price for deployments.
 A gas limit of the charge plus 10,000,000 means holding about 30.1 DUSK up
 front; unused gas is refunded.

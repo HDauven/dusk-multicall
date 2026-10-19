@@ -173,23 +173,21 @@ impl<T: Archive> rkyv::with::ArchiveWith<Vec<T>> for ResolversOnHeap {
 impl<T, S> rkyv::with::SerializeWith<Vec<T>, S> for ResolversOnHeap
 where
     T: Serialize<S>,
-    S: rkyv::ser::Serializer + ?Sized,
+    S: rkyv::ser::Serializer + rkyv::ser::ScratchSpace + ?Sized,
 {
     fn serialize_with(field: &Vec<T>, serializer: &mut S) -> Result<Self::Resolver, S::Error> {
         let resolvers =
             field.iter().map(|value| value.serialize(serializer)).collect::<Result<Vec<_>, _>>()?;
-        // SAFETY: copying an empty slice writes nothing: it aligns the
-        // position for the elements and returns a resolver pointing there.
-        // Each element's size is a multiple of its alignment, so the position
-        // stays aligned for every element written after it.
-        unsafe {
-            let resolver =
-                rkyv::vec::ArchivedVec::serialize_copy_from_slice(&field[..0], serializer)?;
-            for (value, value_resolver) in field.iter().zip(resolvers) {
-                serializer.resolve_aligned(value, value_resolver)?;
-            }
-            Ok(resolver)
+        // An empty slice takes no scratch space: this aligns the position for
+        // the elements and returns a resolver pointing there.
+        let resolver = rkyv::vec::ArchivedVec::serialize_from_slice(&field[..0], serializer)?;
+        for (value, value_resolver) in field.iter().zip(resolvers) {
+            // SAFETY: the position was aligned for the elements, and each
+            // element's size is a multiple of its alignment, so it stays
+            // aligned for every element written after it.
+            unsafe { serializer.resolve_aligned(value, value_resolver)? };
         }
+        Ok(resolver)
     }
 }
 

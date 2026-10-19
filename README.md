@@ -6,14 +6,33 @@ or error, in call order. A failing call never stops the others. The contract
 holds no state, its owner has no on-chain powers over it, it can't be upgraded,
 and it refuses to run unless a query calls it directly.
 
-The number that decides a page's cost is **node queries per user action**. By
-default a Rusk 1.7.1 node answers 180 contract queries per second (bursts of
-360, 12 at a time), shared by every client of that node. A page that reads 40
-values sends 40 queries and takes 40 of that budget. Through the multicall it
-sends one, and the 40 values come back from one block. One query gives one
-state: every value in the reply is read at the same block height, so they agree
-with each other. Queries pay no fee; gas is only a per-query bound, so batching
-costs the user nothing.
+A page that reads 40 values sends 40 queries. Through the multicall it sends
+one, and the 40 values come back from one block, so they agree with each
+other. Queries pay no fee; gas is only a per-query bound, so batching costs
+the user nothing.
+
+## Performance
+
+The more reads a page makes, the more it saves. One request and one session
+replace one per read, and the node spends a fraction of the CPU per read. On a
+local Rusk 1.7.1 node, one client loading a DRC-20 token page (its name,
+symbol, decimals and total supply, plus the balance of each holder):
+
+| Holders | One query per read | One `aggregate` | Faster | Node CPU per read |
+| ---: | ---: | ---: | ---: | ---: |
+| 10 | 24.2 ms | 3.0 ms | 8× | 1,369 → 189 µs |
+| 32 | 61.6 ms | 5.7 ms | 11× | 1,333 → 149 µs |
+| 64 | 122 ms | 9.2 ms | 13× | 1,450 → 145 µs |
+| 128 | 226 ms | 15.0 ms | 15× | 1,389 → 124 µs |
+| 251 | 387 ms | 26.2 ms | 15× | 1,328 → 113 µs |
+
+With 8 clients at once, the node served 1,869 reads per second as single
+queries and 11,082 through one `aggregate` per page of 251 holders. Small views
+of the genesis contracts gave the same picture: 4× faster at 10 reads, 25× at
+256. The multicall's own cost is about 4,500 gas per call, so 256 reads use
+0.04% of a query's gas bound, and every batched read returned the same bytes
+as the single query. Times are medians of six runs on one machine; the ratios
+matter more than the milliseconds.
 
 ## When to use it
 
@@ -22,63 +41,84 @@ Use it for independent reads a client would otherwise send one by one:
 - a client library that batches every contract read made in one tick into one
   query, as viem's `batch.multicall` does;
 - a page load;
-- reads that must agree with each other, such as the Dusk Domains SDK's quote,
-  policy config and store admission before it signs.
+- reads that must agree with each other, such as a price and the config it
+  depends on, read before signing.
 
-A purpose-built aggregator, like the Dusk Domains read lens, is the better tool
-when a read depends on another read's result (the multicall can't feed one
-reply into the next call's argument), or when the answer should be compact
-and already checked. The multicall returns every raw reply. The lens's
-`name_page` makes up to 271 reads, many of them chosen by earlier replies,
-refuses a state that contradicts itself and returns only what the page shows.
+A purpose-built aggregator contract is the better tool when a read depends on
+another read's result (the multicall can't feed one reply into the next call's
+argument), or when the answer should be compact and already checked. The
+multicall returns every raw reply.
 
 ## Using it from a client
 
-A client encodes each inner call's argument with **that callee's** data driver,
+Use [w3sper](https://jsr.io/@dusk/w3sper) and run every data driver on the
+client: the multicall's driver for the envelope and each callee's driver for
+its own call. Load the drivers from local copies whose SHA-256 you pinned, not
+from a node. The node then only sees and returns bytes, and every value is
+decoded by a driver the client chose. The example below runs unchanged with
+w3sper 1.7.0-rc.0 and 1.6.0 on Deno, against Rusk 1.7.1.
+
+A client encodes each inner call's argument with **that callee's** driver,
 wraps the calls in one envelope with the **multicall's** driver, sends one
-query, then decodes each inner reply with the callee's driver again. That
-works for every contract that publishes a compatible data driver, a
-`data-driver-js` Wasm for its JSON ↔ rkyv encoding, as the genesis transfer and
-stake contracts and the Dusk Domains contracts do. For a contract without one,
+query, then decodes each inner reply with the callee's driver again. That works
+for every contract with a `data-driver-js` Wasm, which Forge builds for its
+contracts and the genesis transfer and stake contracts ship. For a contract
+without one,
 encode the argument by hand as the rkyv 0.7 archive (`size_32`) of the
 function's argument type, for example with the contract's own Rust types, and
 decode the reply bytes the same way. This is the same shape as Ethereum's
 Multicall3, where each inner call carries ABI-encoded calldata and viem's
 `multicall` encodes and decodes it for you.
 
-This batches two real Dusk Domains reads (the directory's config and the read
-lens's `name_page`) and one transfer-contract read, decoding each with its own
-driver:
+This reads a DRC-20 token, the `drc20_roles_pausable` example in
+[dusk-network/contracts](https://github.com/dusk-network/contracts/tree/main/standards/examples/drc20_roles_pausable),
+in one query: its name, symbol, decimals and total supply, and the balance of
+every holder in `HOLDERS`.
 
 ```js
-// driver(wasm) returns { encode(fn, json) -> Uint8Array, decode(fn, bytes) -> any }.
-// Any Dusk data-driver-js Wasm works; w3sper's data-driver loader does this.
-const multicall = driver(await load('dusk_multicall_driver.wasm'))
-const directory  = driver(await load('dusk-domains-directory.data-driver.wasm'))
-const lens       = driver(await load('dusk-domains-lens.data-driver.wasm'))
-const transfer   = driver(await load('transfer-contract.data-driver.wasm'))
+import { Contract, Network } from '@dusk/w3sper'
 
-// 1. Encode each call's argument with the callee's own driver.
+const network = await Network.connect(NODE_URL)
+
+// Drivers from local files with pinned hashes, never fetched from a node.
+// `local(path)` returns the file's bytes after checking its SHA-256;
+// `hex` and `unhex` convert between bytes and hex strings.
+const multicall = new Contract({
+  contractId: MULTICALL,
+  driver: await network.dataDrivers.get(MULTICALL, await local('dusk_multicall_driver.wasm')),
+  network,
+})
+// The token's driver is its `make wasm-dd` build, not the contract Wasm.
+const token = await network.dataDrivers.get(TOKEN, await local('drc20_roles_pausable_driver.wasm'))
+
+// 1. Encode each call's argument with the token's driver.
+const read = (fn_name, args = null) => ({
+  contract: TOKEN,
+  fn_name,
+  fn_args: hex(token.encodeInputFn(fn_name, JSON.stringify(args))),
+  gas_limit: '0', // a fair share of the query's gas
+})
 const calls = [
-  { contract: DIRECTORY, fn_name: 'config',    fn_args: hex(directory.encode('config', null)),                            gas_limit: '0' },
-  { contract: LENS,      fn_name: 'name_page',  fn_args: hex(lens.encode('name_page', { name: 'frozen-proof.dusk', hint: null })), gas_limit: '0' },
-  { contract: TRANSFER,  fn_name: 'account',    fn_args: hex(transfer.encode('account', PUBLIC_KEY)),                      gas_limit: '0' },
+  read('name'),
+  read('symbol'),
+  read('decimals'),
+  read('total_supply'),
+  ...HOLDERS.map((address) => read('balance_of', { account: { Moonlight: address } })),
 ]
 
-// 2. Encode the envelope with the multicall's driver and send one query.
-const envelope = multicall.encode('aggregate', calls)
-const reply = await post(`/on/contracts:${MULTICALL}/aggregate`, envelope) // octet-stream
+// 2. One query. w3sper encodes the envelope with the multicall's driver, sends
+//    it as bytes and decodes the reply with the same driver.
+const { height, results } = await multicall.call.aggregate(calls)
 
-// 3. Decode the envelope, then each inner reply with the callee's driver.
-//    Test the discriminant, not the payload: an empty `Ok` is a valid reply
-//    (a function that returns `()`) and still has to be decoded.
-const { height, results } = multicall.decode('aggregate', reply)
-const settle = (result, callee, fn) =>
-  Object.hasOwn(result, 'Ok') ? callee.decode(fn, bytes(result.Ok)) : { error: result.Err }
-const config   = settle(results[0], directory, 'config')
-const namePage = settle(results[1], lens, 'name_page')
-const account  = settle(results[2], transfer, 'account')
-// All three were read at block `height`.
+// 3. Decode each reply with the token's driver. Test the discriminant, not the
+//    payload: an empty `Ok` is a valid reply (a function that returns `()`).
+const values = results.map((result, i) =>
+  Object.hasOwn(result, 'Ok')
+    ? token.decodeOutputFn(calls[i].fn_name, unhex(result.Ok))
+    : { error: result.Err },
+)
+// Every value was read at block `height`. The token's driver returns u64
+// values as decimal strings and `decimals` as a number.
 ```
 
 ### How decoding works
@@ -96,16 +136,15 @@ callee's encoding before it goes into the envelope, so the client encodes it
 with the callee's driver, just as a Multicall3 caller ABI-encodes each inner
 call's calldata.
 
-A node can also decode JSON itself, but only for the one contract the request
-names, using the driver that node holds for it. Send `aggregate` as JSON and
-the node decodes the **envelope** with the multicall's driver; the inner
-replies inside it stay hex, because the node runs only the multicall's driver,
-not each callee's. So JSON mode through the node is a convenience for the
-envelope; the inner values are still decoded client-side with each callee's
-driver. (This matches Multicall3: an `eth_call` to it returns each inner result
-as raw bytes, and the caller decodes them per call.) JSON mode also trusts that
-node's driver; a client that needs integrity decodes locally, in binary mode,
-with a pinned driver (see Trust model).
+Encoding an argument can cost more than the read. The DRC-20 driver takes
+about 1.5 ms per `balance_of`, because it validates the holder's address as a
+BLS key, so 251 holders spend about 400 ms in the client. A client that reads
+the same accounts again keeps each encoded `fn_args` and reuses it; the
+w3sper path then loads 128 holders in 14 ms, as fast as raw bytes.
+
+A node can decode JSON too, but only the envelope: it holds the multicall's
+driver, not each callee's, so the inner replies stay hex. Running the drivers
+locally, as above, needs nothing from the node and decodes every value.
 
 ## ABI
 
@@ -187,10 +226,9 @@ A whole query fails in these cases:
 | VM `OutOfGas` | the query itself used up its gas bound |
 | VM `Memory access out of bounds` | an argument over 64 KiB, refused before the contract runs |
 
-Rusk 1.7.1 answers each of them with HTTP 500 and
-`{"error":"Internal server error"}`. The message only reaches the node's log,
-so a client can't tell these failures from a node fault. Every other failure
-belongs to one call and comes back in `results`.
+Each of these fails the whole query, and the node answers with an HTTP error
+instead of a reply. Every other failure belongs to one call and comes back in
+`results`.
 
 A batch is only as available as the contracts in it: a hostile callee can still
 make the whole query fail. Keep calls to contracts you don't trust in a separate
@@ -315,23 +353,15 @@ uses about 4.6 million gas, 0.15% of the bound.
   client that pins the ID with the reviewed Wasm's SHA-256, the nonce and the
   owner pins the code, and anyone can recompute the ID from the published Wasm.
 - **Results are as good as direct reads.** Each one is the callee's own answer,
-  read in one session at one state root. The node is the trust root for both;
-  Dusk nodes return no state proofs.
-- **A height is not a block.** The reply carries the height, not a block hash.
-  A query runs at the node's tip, which may not be final yet, and if that block
-  is replaced by another at the same height, nothing in the reply shows it.
-  Only a node that reports the block it answered from can close that gap; Rusk
-  1.7.1 doesn't.
+  read in one session at one state root. The node you query is the trust root
+  for both, as for any query.
 - **It can only read.** The Wasm imports six host functions (`caller`, `c`,
   `hd`, `limit`, `spent` and `panic`), none that emit events, feed data or
   move value. It has no `init` and no state. The owner has no on-chain powers:
   no transaction can change the code, and there is nothing to administer.
-- **JSON mode trusts the node's driver.** A node encodes and decodes JSON with
-  whatever driver it holds for the contract, and the owner can replace that
-  driver on any node without changing the contract or its ID, so pinning the
-  contract does not pin the driver. A client that needs integrity sends binary
-  queries and runs a pinned copy of the driver itself: the `data-driver-js`
-  build listed in `wasm.sha256`, SHA-256
+- **Pin the drivers too.** Pinning the contract does not pin a data driver,
+  so a client runs its own pinned copies (see Using it from a client). The
+  multicall's is the `data-driver-js` build listed in `wasm.sha256`, SHA-256
   `d2ed9e7b89d81f12b877f787a7830b90405357c82c9c28f75f0e048530e91462`.
 
 ## Deployment
@@ -348,9 +378,9 @@ it.
 
 The Wasm is 52,221 bytes, so the bytecode charge is 5,222,100 gas (100 gas per
 byte). The deployment spent 7,044,600 gas on a local Rusk 1.7.1 node, 14.089
-DUSK at 2,000 Lux per gas, the minimum deployment price that the Dusk Domains
-deploy tooling pays. That tooling's limit, the charge plus 10,000,000, means
-holding about 30.4 DUSK up front; unused gas is refunded.
+DUSK at 2,000 Lux per gas, Rusk's default minimum gas price for deployments.
+A gas limit of the charge plus 10,000,000 means holding about 30.4 DUSK up
+front; unused gas is refunded.
 
 `make wasm` builds the contract, its driver and the test probe into
 `target/wasm` with Rust 1.95.0 and the locked dependencies, and strips local
@@ -360,17 +390,16 @@ gave the same bytes, and CI checks the contract and the driver against
 imports undefined (dusk-network/forge#44), which is why the toolchain is pinned
 to 1.95.0.
 
-A node only decodes JSON for a contract whose owner uploaded its driver to that
-node. Uploads are per node, and JSON mode trusts the driver each node holds
-(see Trust model).
+A client that runs the drivers locally needs no driver on the node. A node
+only answers JSON for a contract whose owner uploaded its driver to that node.
 
 ## Using it over HTTP
 
 Rusk reads a request body as bytes, and answers in bytes, only with
 `Content-Type: application/octet-stream`. Otherwise it reads the body as text,
-decodes it as hex if it starts with `0x`, and answers in hex. The readable way
-to drive it by hand is JSON, on a node that has the driver — this reads the
-transfer contract's `chain_id`:
+decodes it as hex if it starts with `0x`, and answers in hex. To try it by
+hand, JSON works on a node that holds the driver. This reads the transfer
+contract's `chain_id`:
 
 ```sh
 NODE=http://127.0.0.1:18230
@@ -394,8 +423,8 @@ curl -s -X POST "$NODE/on/contracts:$MULTICALL/aggregate" \
   -H 'Content-Type: application/octet-stream' --data-binary @batch.rkyv --output reply.rkyv
 ```
 
-A JS client can also run the driver itself. `tests/driver.test.mjs` loads its
-Wasm and calls `encode_input_fn` and `decode_output_fn` in about 30 lines.
+`tests/driver.test.mjs` runs the driver Wasm directly, without w3sper, in
+about 30 lines.
 
 A batching client such as Dusk Connect would:
 
@@ -405,9 +434,9 @@ A batching client such as Dusk Connect would:
    3,000,000,000 gas divided by the batch size plus one;
 3. settle each read from its own result, decoding the reply with the callee's
    driver;
-4. on HTTP 500, which Rusk 1.7.1 gives without a reason, split the batch or
-   fall back to direct queries. A batch whose replies pass 64 KiB fails as a
-   whole, and reply sizes aren't known in advance.
+4. when the whole query fails, split the batch or fall back to direct
+   queries. A batch whose replies pass 64 KiB fails as a whole, and reply
+   sizes aren't known in advance.
 
 ## Development
 

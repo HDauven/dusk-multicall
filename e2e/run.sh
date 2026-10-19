@@ -53,7 +53,7 @@ start() {
   "${rusk[@]}" recovery state --init "$run/rusk/examples/genesis.toml" \
     --output "$chain/genesis.state" > "$chain/genesis.log" 2>&1
   # The block gas limit, which Rusk also gives each query, and Phoenix off
-  # as on mainnet after activation (Dusk Domains' CI node does the same).
+  # as on mainnet after activation.
   printf '[vm]\nblock_gas_limit = 3000000000\n[vm.features]\nDISABLE_PHOENIX = 1\n' > "$chain/node.toml"
   cp "$run/rusk/examples/consensus.keys" "$chain/profile/consensus.keys"
   RUSK_MINIMUM_BLOCK_TIME=1 RUSK_ALLOW_CFG_OVERRIDE=true DUSK_CONSENSUS_KEYS_PASS=password \

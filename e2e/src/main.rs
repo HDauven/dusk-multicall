@@ -244,8 +244,8 @@ fn main() {
         }
     });
 
-    // Deployments, with the gas Dusk Domains' deploy tooling uses: the
-    // bytecode charge plus 10M, at the node's minimum deployment price.
+    // Deployments, at a gas limit of the bytecode charge plus 10M and the
+    // node's minimum deployment price.
     let multicall_wasm = read(format!("{wasm}/dusk_multicall.wasm"));
     let probe_wasm = read(format!("{wasm}/multicall_probe.wasm"));
     let driver_wasm = read(format!("{wasm}/dusk_multicall_driver.wasm"));

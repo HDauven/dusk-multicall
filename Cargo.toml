@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["multicall", "tests/probe", "tests/vm"]
+members = ["multicall", "tests/probe", "tests/vm", "e2e"]
 default-members = ["multicall", "tests/vm"]
 
 [workspace.package]

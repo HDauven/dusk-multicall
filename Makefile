@@ -5,7 +5,7 @@ WASM_FLAGS := --remap-path-prefix=$(CARGO_HOME)/registry/src/=
 WASM_BUILD := RUSTFLAGS='$(WASM_FLAGS)' cargo build --locked --release --target wasm32-unknown-unknown
 RELEASE := wasm32-unknown-unknown/release
 
-.PHONY: wasm test lint clean
+.PHONY: wasm test lint e2e clean
 
 # target/wasm: the contract, its JS data driver and the test probe.
 wasm:
@@ -30,6 +30,9 @@ lint:
 	cargo clippy --locked --target wasm32-unknown-unknown -p dusk-multicall --features contract -- -D warnings
 	cargo clippy --locked --target wasm32-unknown-unknown -p multicall-probe -- -D warnings
 
+# Starts a local Rusk 1.7.1 node, runs the end-to-end checks and stops it.
+e2e:
+	e2e/run.sh
 
 clean:
 	cargo clean

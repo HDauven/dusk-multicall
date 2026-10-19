@@ -29,7 +29,7 @@ use wallet::{Account, Chain};
 
 const QUERY_GAS: u64 = 3_000_000_000;
 const REFUSED: &str = "multicall: direct queries only";
-/// How Forge's export, through uplink's `wrap_call`, refuses a bad argument.
+/// How the export refuses a bad argument, in the words of uplink's `wrap_call`.
 const INVALID: &str = "Panic: Argument should correctly deserialize: ";
 const CALL_GAS: u64 = 20_000_000;
 /// Rusk 1.7.1 answers every failed query with this; the reason goes to its log.

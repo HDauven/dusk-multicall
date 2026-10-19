@@ -1,12 +1,12 @@
-//! The contract. Forge's `#[contract]` turns each `pub fn` into a Wasm export
-//! that decodes its argument before the method runs and encodes what the
-//! method returns, and, in a `data-driver` build, generates the data driver.
+//! The contract. Its Wasm exports are written by hand, in `exports`; in a
+//! `data-driver` build, Forge's `#[contract]` generates the data driver from
+//! the methods below.
 //!
 //! Each method runs only as a direct query. A query calls its contract with no
 //! caller; a transaction reaches a contract through the transfer contract, and
 //! any calling contract is a caller too.
 
-#[dusk_forge::contract]
+#[cfg_attr(feature = "data-driver", dusk_forge::contract)]
 mod multicall {
     use alloc::vec::Vec;
 
@@ -89,5 +89,71 @@ mod multicall {
         let len = unsafe { hd(BLOCK_HEIGHT.as_ptr(), BLOCK_HEIGHT.len() as u32) } as usize;
         piecrust_uplink::arg_buf::with_arg_buf(|buf| rkyv::from_bytes::<u64>(&buf[..len]).ok())
             .unwrap_or_else(|| panic!("multicall: no block height"))
+    }
+}
+
+/// The Wasm exports. Each decodes its argument into owned values, runs its
+/// method and encodes the reply.
+#[cfg(not(feature = "data-driver"))]
+mod exports {
+    use core::fmt::Debug;
+
+    use bytecheck::CheckBytes;
+    use piecrust_uplink::arg_buf::with_arg_buf;
+    use piecrust_uplink::{SCRATCH_BUF_BYTES, StandardBufSerializer};
+    use rkyv::ser::Serializer;
+    use rkyv::ser::serializers::{BufferScratch, BufferSerializer, CompositeSerializer};
+    use rkyv::validation::validators::DefaultValidator;
+    use rkyv::{Archive, Deserialize, Infallible, Serialize};
+
+    use super::multicall::Multicall;
+
+    #[unsafe(no_mangle)]
+    extern "C" fn aggregate(arg_len: u32) -> u32 {
+        let calls = argument(arg_len);
+        reply(&Multicall::new().aggregate(calls))
+    }
+
+    #[unsafe(no_mangle)]
+    extern "C" fn version(arg_len: u32) -> u32 {
+        let () = argument(arg_len);
+        reply(&Multicall::new().version())
+    }
+
+    /// The argument, checked and decoded as uplink's `wrap_call` does it, with
+    /// the same message for a bad one.
+    fn argument<A, E>(arg_len: u32) -> A
+    where
+        A: Archive,
+        A::Archived:
+            Deserialize<A, Infallible> + for<'a> CheckBytes<DefaultValidator<'a>, Error = E>,
+        E: Debug,
+    {
+        let checked = with_arg_buf(|buf| {
+            // The VM never passes more than the buffer holds.
+            let arg = &buf[..buf.len().min(arg_len as usize)];
+            rkyv::check_archived_root::<A>(arg)
+                .map(|archived| archived.deserialize(&mut Infallible))
+        });
+        let Ok(argument) = checked.expect("Argument should correctly deserialize");
+        argument
+    }
+
+    /// Encodes the reply into the argument buffer, where the VM reads it, and
+    /// returns its length. `aggregate` has checked that its reply fits.
+    fn reply<R>(value: &R) -> u32
+    where
+        R: for<'a> Serialize<StandardBufSerializer<'a>>,
+    {
+        let encoded = with_arg_buf(|buf| {
+            let mut scratch = [0u8; SCRATCH_BUF_BYTES];
+            let mut serializer = CompositeSerializer::new(
+                BufferSerializer::new(buf),
+                BufferScratch::new(&mut scratch),
+                Infallible,
+            );
+            serializer.serialize_value(value).map(|_| serializer.pos()).map_err(|_| ())
+        });
+        encoded.unwrap_or_else(|()| panic!("multicall: cannot encode the reply")) as u32
     }
 }

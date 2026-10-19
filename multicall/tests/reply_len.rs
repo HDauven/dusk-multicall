@@ -59,7 +59,7 @@ fn resolvers_on_heap_keep_the_archive_unchanged() {
 }
 
 /// Encodes into a 64 KiB buffer with a fixed 1 KiB scratch space and no
-/// fallback, as uplink's `wrap_call` encodes what an export returns.
+/// fallback, as the exports encode a reply.
 fn encode_like_wrap_call<T>(value: &T) -> Result<usize, String>
 where
     T: for<'a> Serialize<

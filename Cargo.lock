@@ -1373,6 +1373,7 @@ dependencies = [
  "piecrust",
  "rkyv",
  "tempfile",
+ "wasmparser",
 ]
 
 [[package]]

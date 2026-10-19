@@ -12,3 +12,5 @@ dusk-multicall.workspace = true
 rkyv.workspace = true
 bytecheck.workspace = true
 tempfile = "3"
+# The parser in piecrust 0.31's wasmtime.
+wasmparser = "=0.202.0"

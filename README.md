@@ -153,9 +153,9 @@ locally, as above, needs nothing from the node and decodes every value.
 | `aggregate` | `Vec<Call>` | `Aggregate` |
 | `version` | ignored | `1u32` |
 
-Both run only as direct queries. The contract is written with Dusk Forge
-(`#[dusk_forge::contract]`), which generates the Wasm export wrappers and the
-`data-driver-js` build that is this envelope's data driver.
+Both run only as direct queries. The Wasm exports are written by hand. Dusk
+Forge (`#[dusk_forge::contract]`) generates the envelope's data driver, the
+`data-driver-js` build, from the contract's methods.
 
 ```rust
 pub struct Call {
@@ -186,13 +186,13 @@ values are decimal strings (numbers are accepted on input):
 
 What `aggregate` does, in order:
 
-1. Refuses with `multicall: direct queries only` if any contract called it
+1. Decodes the argument into an owned `Vec<Call>`. An argument that isn't a
+   valid archive is refused here, before the caller is checked.
+2. Refuses with `multicall: direct queries only` if any contract called it
    (`abi::caller()` is not `None`). On Rusk 1.7.1 every transaction reaches its
    contract through the transfer contract's `spend_and_execute`, so this
    refuses every transaction, every contract caller and every nested multicall.
    Only a query calls a contract with no caller.
-2. Takes the calls as an owned `Vec<Call>`: Forge decodes the argument before
-   the method runs.
 3. Calls each contract in order with `call_raw_with_limit`, at the call's cap
    or, for a cap of 0, at a fair share of the gas left (see Gas). A reply is
    exactly the bytes the callee returned, which for a view that doesn't branch
@@ -301,11 +301,11 @@ batch size plus one. On the node, a probe call got this much gas:
 
 | Probe | Gas | 3,000,000,000 ÷ (calls + 1) |
 | --- | ---: | ---: |
-| a lone call | 1,499,997,444 | 1,500,000,000 |
-| 1st to 4th of 4 cheap calls | 599,998,001, 749,996,196, 999,993,894, 1,499,989,408 | 600,000,000 for the first |
-| 6th of 7, after 5 failures | 374,997,235 | 375,000,000 |
-| 51st of 52, after 50 failures | 56,599,681 | 56,603,773 |
-| 255th of 256, after 254 failures | 11,667,839 | 11,673,151 |
+| a lone call | 1,499,997,445 | 1,500,000,000 |
+| 1st to 4th of 4 cheap calls | 599,998,003, 749,996,199, 999,993,897, 1,499,989,414 | 600,000,000 for the first |
+| 6th of 7, after 5 failures | 374,997,238 | 375,000,000 |
+| 51st of 52, after 50 failures | 56,599,684 | 56,603,773 |
+| 255th of 256, after 254 failures | 11,667,842 | 11,673,151 |
 
 The shares of cheap calls grow, because each leaves most of its share unused.
 After 5, 50 and 255 failures a cheap call still succeeds.
@@ -318,8 +318,8 @@ calls succeed either way.
 
 The share kept back covers the largest reply. The worst case is a full batch
 whose calls fail at their shares, the last one included. On the node, 255
-failures left 23,334,720 gas, the last call's share was 11,667,446, and a
-failing last call leaves 11,667,274 for the encoding, while a full 64 KiB of
+failures left 23,334,726 gas, the last call's share was 11,667,449, and a
+failing last call leaves 11,667,277 for the encoding, while a full 64 KiB of
 replies takes about 4.6 million. A 61,424-byte reply, the largest the buffer
 holds next to 255 failed results, came back with the 255 failures before or
 after it; one byte more and the buffer refuses the reply, not the gas.
@@ -334,10 +334,10 @@ tests, the rest from the node:
 
 | | Gas |
 | --- | ---: |
-| `aggregate([])` | 3,598 |
-| `aggregate([echo; 256])` | 1,175,804 (4,575 per call) |
+| `aggregate([])` | 3,595 |
+| `aggregate([echo; 256])` | 1,175,033 (4,572 per call) |
 | each reply byte | about 70 |
-| setup before the first call | 6,947 |
+| setup before the first call | 6,942 |
 | transfer `account(pk)`, measured inside a batch | 9,560 |
 | stake `get_stake(pk)`, measured inside a batch | 31,918 |
 | transfer `root()`, measured inside a batch | 1,385 |
@@ -376,10 +376,10 @@ harmless, because with no `init` and no state every deployment at that ID is
 the same contract. Check the ID in the deployment receipt before publishing
 it.
 
-The Wasm is 52,221 bytes, so the bytecode charge is 5,222,100 gas (100 gas per
-byte). The deployment spent 7,044,600 gas on a local Rusk 1.7.1 node, 14.089
+The Wasm is 50,404 bytes, so the bytecode charge is 5,040,400 gas (100 gas per
+byte). The deployment spent 6,862,900 gas on a local Rusk 1.7.1 node, 13.726
 DUSK at 2,000 Lux per gas, Rusk's default minimum gas price for deployments.
-A gas limit of the charge plus 10,000,000 means holding about 30.4 DUSK up
+A gas limit of the charge plus 10,000,000 means holding about 30.1 DUSK up
 front; unused gas is refunded.
 
 `make wasm` builds the contract, its driver and the test probe into

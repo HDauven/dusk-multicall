@@ -148,9 +148,9 @@ pub fn reply_len(calls: usize, out_of_line: usize) -> usize {
 }
 
 /// Archives a `Vec` exactly as rkyv does, but keeps the resolvers of its
-/// elements in a heap `Vec` instead of the serializer's scratch space. Forge's
-/// exports encode a reply with uplink's `wrap_call`, whose scratch space is a
-/// fixed 1 KiB: too small for the resolvers of a few hundred results.
+/// elements in a heap `Vec` instead of the serializer's scratch space. The
+/// exports encode a reply as uplink's `wrap_call` does, with a fixed 1 KiB of
+/// scratch space: too small for the resolvers of a few hundred results.
 #[derive(Debug)]
 pub struct ResolversOnHeap;
 

@@ -2,7 +2,7 @@
 use multicall_vm_tests::*;
 
 const REFUSED: &str = "multicall: direct queries only";
-/// How uplink's `wrap_call`, under Forge's exports, refuses a bad argument.
+/// How the exports refuse a bad argument, in the words of uplink's `wrap_call`.
 const INVALID: &str = "Argument should correctly deserialize";
 
 /// Calls that fail, with the error each one reports.
@@ -63,9 +63,11 @@ fn an_empty_batch_returns_only_the_height() {
 }
 
 #[test]
-fn version_is_one() {
+fn version_is_one_whatever_the_argument() {
     let w = World::new();
-    assert_eq!(decode::<u32>(&w.reply(MULTICALL, "version", &[])), 1);
+    for arg in [vec![], vec![0xff; 33], vec![0x5a; ARGBUF_LEN]] {
+        assert_eq!(decode::<u32>(&w.reply(MULTICALL, "version", &arg)), 1, "{} bytes", arg.len());
+    }
 }
 
 #[test]
@@ -140,6 +142,12 @@ fn nested_multicalls_are_refused() {
     let indirect = call(PROBE, "forward", forward(MULTICALL, "aggregate", inner));
     let reply = w.results(&[indirect]).remove(0).unwrap();
     assert_eq!(reply, [&[1][..], format!("Panic: {REFUSED}").as_bytes()].concat());
+    // A bad argument is refused as one, before the caller is checked.
+    let results = w.results(&[call(MULTICALL, "aggregate", vec![0xff; 12])]);
+    assert!(
+        matches!(&results[0], Err(CallError::Panic(m)) if m.starts_with(INVALID)),
+        "{results:?}"
+    );
 }
 
 #[test]
@@ -164,7 +172,7 @@ fn malformed_envelopes_are_refused() {
         ("name not UTF-8", not_utf8),
         ("list past the end", too_long),
     ] {
-        // Forge's export validates the argument before the method runs.
+        // The export validates the argument before the method runs.
         let error = w.aggregate_raw(&bytes).unwrap_err();
         assert!(error.starts_with(INVALID), "{case}: {error}");
     }

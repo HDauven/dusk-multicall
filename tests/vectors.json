@@ -1,0 +1,55 @@
+[
+  {
+    "fn": "aggregate",
+    "kind": "input",
+    "json": [
+      {
+        "contract": "0100000000000000000000000000000000000000000000000000000000000000",
+        "fn_name": "account",
+        "fn_args": "deadbeef",
+        "gas_limit": "0"
+      },
+      {
+        "contract": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "fn_name": "a_name_longer_than_eight_bytes",
+        "fn_args": "",
+        "gas_limit": "1000000"
+      }
+    ],
+    "rkyv": "deadbeef615f6e616d655f6c6f6e6765725f7468616e5f65696768745f627974657300000000000001000000000000000000000000000000000000000000000000000000000000006163636f756e7407b0ffffff040000000000000000000000aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa1e00000084ffffff9affffff0000000040420f000000000090ffffff02000000"
+  },
+  {
+    "fn": "aggregate",
+    "kind": "input",
+    "json": [],
+    "rkyv": "0000000000000000"
+  },
+  {
+    "fn": "aggregate",
+    "kind": "output",
+    "json": {
+      "height": "123456",
+      "results": [
+        { "Ok": "0102" },
+        { "Err": { "Panic": "boom" } },
+        { "Err": "OutOfGas" },
+        { "Err": "DoesNotExist" },
+        { "Err": "Unknown" },
+        { "Ok": "" }
+      ]
+    },
+    "rkyv": "0102000000000000f8ffffff02000000000000000100000000000000626f6f6d0000000401000000010000000000000000000000010000000200000000000000000000000100000003000000000000000000000000000000aaffffff00000000000000000000000040e201000000000094ffffff06000000"
+  },
+  {
+    "fn": "version",
+    "kind": "input",
+    "json": null,
+    "rkyv": ""
+  },
+  {
+    "fn": "version",
+    "kind": "output",
+    "json": 1,
+    "rkyv": "01000000"
+  }
+]

@@ -1,0 +1,23 @@
+[workspace]
+resolver = "2"
+members = ["multicall", "tests/probe", "tests/vm"]
+default-members = ["multicall", "tests/vm"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+license = "MIT"
+repository = "https://github.com/HDauven/dusk-multicall"
+
+[workspace.dependencies]
+# The ABI crate Rusk 1.7.1 contracts are built against.
+piecrust-uplink = { version = "=0.21.0", default-features = false }
+rkyv = { version = "0.7", default-features = false, features = ["size_32", "alloc", "validation"] }
+bytecheck = { version = "0.6", default-features = false }
+dusk-multicall = { path = "multicall" }
+
+[profile.release]
+overflow-checks = true
+# Deployment pays 100 gas per Wasm byte; drop the custom sections.
+strip = true
+codegen-units = 1

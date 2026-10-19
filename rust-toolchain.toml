@@ -1,0 +1,7 @@
+# Wasm built with Rust 1.96 or later fails to link: piecrust-uplink's host
+# imports come out as undefined symbols (dusk-network/forge#44). The exact
+# version is pinned because the contract ID commits to the Wasm bytes.
+[toolchain]
+channel = "1.95.0"
+targets = ["wasm32-unknown-unknown"]
+components = ["rustfmt", "clippy"]

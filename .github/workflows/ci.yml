@@ -1,0 +1,21 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      # rust-toolchain.toml pins the compiler and the wasm32 target.
+      - run: rustup show active-toolchain || rustup toolchain install
+      - run: make wasm
+      - run: sha256sum --check wasm.sha256
+      - run: make lint
+      - run: make test

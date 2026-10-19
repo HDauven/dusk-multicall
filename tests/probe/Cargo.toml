@@ -1,0 +1,15 @@
+[package]
+name = "multicall-probe"
+description = "Target contract for the multicall tests"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish = false
+
+[lib]
+crate-type = ["cdylib"]
+
+[target.'cfg(target_family = "wasm")'.dependencies]
+piecrust-uplink = { workspace = true, features = ["abi", "dlmalloc"] }
+rkyv.workspace = true
+bytecheck.workspace = true

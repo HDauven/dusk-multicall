@@ -1,4 +1,4 @@
-# Dusk Multicall
+# Multicall for Dusk
 
 One contract query that makes many contract reads, all at one state. `aggregate`
 takes a list of calls and returns the block height with each call's raw reply
@@ -53,8 +53,9 @@ multicall returns every raw reply.
 
 Use [w3sper](https://jsr.io/@dusk/w3sper) and run every data driver on the
 client: the multicall's driver for the envelope and each callee's driver for
-its own call. Load the drivers from local copies whose SHA-256 you pinned, not
-from a node. The node then only sees and returns bytes, and every value is
+its own call. Ship the drivers with your dApp or service, as copies whose
+SHA-256 you pinned; the multicall's driver is attached to each release. The
+node then only sees and returns bytes, and every value is
 decoded by a driver the client chose. The example below runs unchanged with
 w3sper 1.7.0-rc.0 and 1.6.0 on Deno, against Rusk 1.7.1.
 
@@ -121,6 +122,9 @@ const values = results.map((result, i) =>
 // values as decimal strings and `decimals` as a number.
 ```
 
+`tests/driver.test.mjs` runs the driver Wasm directly, without w3sper, in
+about 30 lines.
+
 ### How decoding works
 
 Each `results[i].Ok` holds exactly the bytes the callee returned to the
@@ -141,10 +145,6 @@ about 1.5 ms per `balance_of`, because it validates the holder's address as a
 BLS key, so 251 holders spend about 400 ms in the client. A client that reads
 the same accounts again keeps each encoded `fn_args` and reuses it; the
 w3sper path then loads 128 holders in 14 ms, as fast as raw bytes.
-
-A node can decode JSON too, but only the envelope: it holds the multicall's
-driver, not each callee's, so the inner replies stay hex. Running the drivers
-locally, as above, needs nothing from the node and decodes every value.
 
 ## ABI
 
@@ -390,41 +390,9 @@ gave the same bytes, and CI checks the contract and the driver against
 imports undefined (dusk-network/forge#44), which is why the toolchain is pinned
 to 1.95.0.
 
-A client that runs the drivers locally needs no driver on the node. A node
-only answers JSON for a contract whose owner uploaded its driver to that node.
+Each GitHub release attaches the contract Wasm, its driver and `wasm.sha256`.
 
-## Using it over HTTP
-
-Rusk reads a request body as bytes, and answers in bytes, only with
-`Content-Type: application/octet-stream`. Otherwise it reads the body as text,
-decodes it as hex if it starts with `0x`, and answers in hex. To try it by
-hand, JSON works on a node that holds the driver. This reads the transfer
-contract's `chain_id`:
-
-```sh
-NODE=http://127.0.0.1:18230
-MULTICALL=<contract id>
-
-curl -s -X POST "$NODE/on/contracts:$MULTICALL/version" --data ''
-# 01000000  (version 1, little-endian)
-
-curl -s -X POST "$NODE/on/contracts:$MULTICALL/aggregate" -H 'Content-Type: application/json' \
-  --data '[{"contract":"0100000000000000000000000000000000000000000000000000000000000000","fn_name":"chain_id","fn_args":"","gas_limit":"0"}]'
-# {"height":"28","results":[{"Ok":"00"}]}
-```
-
-The node decodes only the envelope here: `chain_id`'s reply comes back as the
-hex `"00"`, which a client decodes with the transfer contract's driver. The
-same batch as raw bytes, for a client that builds the envelope itself:
-
-```sh
-# batch.rkyv is the multicall driver's encoding of the call list above.
-curl -s -X POST "$NODE/on/contracts:$MULTICALL/aggregate" \
-  -H 'Content-Type: application/octet-stream' --data-binary @batch.rkyv --output reply.rkyv
-```
-
-`tests/driver.test.mjs` runs the driver Wasm directly, without w3sper, in
-about 30 lines.
+## Batching in a client
 
 A batching client such as Dusk Connect would:
 

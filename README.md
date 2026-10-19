@@ -11,6 +11,12 @@ one, and the 40 values come back from one block, so they agree with each
 other. Queries pay no fee; gas is only a per-query bound, so batching costs
 the user nothing.
 
+It runs on mainnet and testnet at the same contract ID:
+
+```
+93de287b7d349d678a0038fe7772e8960e1a84a1b5da2d0b1f62f532616ce1d4
+```
+
 ## Performance
 
 The more reads a page makes, the more it saves. One request and one session
@@ -365,6 +371,18 @@ uses about 4.6 million gas, 0.15% of the bound.
   `d2ed9e7b89d81f12b877f787a7830b90405357c82c9c28f75f0e048530e91462`.
 
 ## Deployment
+
+Mainnet and testnet run the `v0.1.0` contract Wasm (`65f77a27…` in
+`wasm.sha256`), deployed with nonce 0 and this owner:
+
+```
+r2h82mj2ehNhYPphK3GHVpG98MhSsZNCAF9sdSS4nwQJKqVBwihZn7bZXb9VoWVSqtu6onZ8Tkm11zdnavdCfuCD1kS2We4VPxvLeDf73a1sGiG25HUFvCwQJm3Ud8q6KLW
+```
+
+| Network | Block | Gas spent | Deployment transaction |
+| --- | ---: | ---: | --- |
+| mainnet | 5,539,347 | 6,899,274 | `bcfe4b21da7b37089cae53ca3067758cf530d57d5768700881149d47f52e596b` |
+| testnet | 4,633,849 | 6,899,157 | `1c7fcf1e19357fe2ed224a434cab40f529e1ef60dc4bcbfe97911f5afa026d34` |
 
 The chain ID is not part of a contract ID. The same Wasm, nonce and owner give
 the same ID on testnet, mainnet and any other chain; the E2E run deploys the

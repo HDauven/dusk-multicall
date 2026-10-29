@@ -3,9 +3,9 @@ name: JS client
 on:
   push:
     branches: [main]
-    paths: ['js/**', 'tests/vectors.json', 'wasm.sha256', '.github/workflows/js.yml']
+    paths: ['js/**', 'tests/vectors.json', 'wasm.sha256', '.github/workflows/js.yml', '.github/workflows/publish-js.yml']
   pull_request:
-    paths: ['js/**', 'tests/vectors.json', 'wasm.sha256', '.github/workflows/js.yml']
+    paths: ['js/**', 'tests/vectors.json', 'wasm.sha256', '.github/workflows/js.yml', '.github/workflows/publish-js.yml']
 
 permissions:
   contents: read

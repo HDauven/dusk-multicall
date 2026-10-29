@@ -1,0 +1,60 @@
+name: Publish JS client
+
+on:
+  push:
+    tags: ['js-v*']
+
+permissions:
+  contents: read
+  id-token: write # JSR authenticates this repository through OIDC
+
+jobs:
+  publish:
+    runs-on: ubuntu-24.04
+    defaults:
+      run:
+        working-directory: js
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
+        with:
+          node-version: 24
+      - uses: denoland/setup-deno@22d081ff2d3a40755e97629de92e3bcbfa7cf2ed # v2.0.5
+        with:
+          deno-version: 2.9.7
+      - name: Tag matches jsr.json
+        run: test "$GITHUB_REF_NAME" = "js-v$(node -p "require('./jsr.json').version")"
+      - name: Fetch the data driver
+        working-directory: .
+        run: |
+          mkdir -p target/wasm
+          curl -fsSLo target/wasm/dusk_multicall_driver.wasm \
+            https://github.com/HDauven/dusk-multicall/releases/download/v0.1.0/dusk_multicall_driver.wasm
+          grep _driver wasm.sha256 | sha256sum --check
+      - run: node --test test/*.test.ts
+      - run: deno publish --dry-run
+      # JSR can queue a version for many minutes, and the CLI gives up at the first failed status
+      # poll, before it signs provenance. Run again, it resumes the queued task and signs once that
+      # finishes, so only that failure is retried. A version JSR already has, the CLI skips
+      # unsigned, on a retry or in a later run: that passes only if JSR has the version's
+      # provenance, its transparency log entry, and otherwise the job fails to say so.
+      - name: Publish to JSR with provenance
+        shell: bash
+        run: |
+          log="$RUNNER_TEMP/publish.log"
+          provenance() {
+            url=$(node -p "const { name, version } = require('./jsr.json'); 'https://api.jsr.io/scopes/' + name.slice(1).replace('/', '/packages/') + '/versions/' + version")
+            curl -fsS "$url" | node -e "process.exit(JSON.parse(require('fs').readFileSync(0, 'utf8')).rekorLogId ? 0 : 1)"
+          }
+          for attempt in 1 2 3 4 5; do
+            if deno publish --no-check 2>&1 | tee "$log"; then
+              if grep -q 'Skipping, already published' "$log" && ! provenance; then
+                echo '::error::JSR has this version without provenance.'
+                exit 1
+              fi
+              exit 0
+            fi
+            grep -q 'Failed to get publishing status' "$log" || exit 1
+            [ "$attempt" -lt 5 ] && sleep 15
+          done
+          exit 1

@@ -1,0 +1,37 @@
+name: JS client
+
+on:
+  push:
+    branches: [main]
+    paths: ['js/**', 'tests/vectors.json', 'wasm.sha256', '.github/workflows/js.yml', '.github/workflows/publish-js.yml']
+  pull_request:
+    paths: ['js/**', 'tests/vectors.json', 'wasm.sha256', '.github/workflows/js.yml', '.github/workflows/publish-js.yml']
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-24.04
+    defaults:
+      run:
+        working-directory: js
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
+        with:
+          node-version: 24
+      - uses: denoland/setup-deno@22d081ff2d3a40755e97629de92e3bcbfa7cf2ed # v2.0.5
+        with:
+          deno-version: 2.9.7
+      # The codec is checked against the released data driver, pinned in wasm.sha256.
+      - name: Fetch the data driver
+        working-directory: .
+        run: |
+          mkdir -p target/wasm
+          curl -fsSLo target/wasm/dusk_multicall_driver.wasm \
+            https://github.com/HDauven/dusk-multicall/releases/download/v0.1.0/dusk_multicall_driver.wasm
+          grep _driver wasm.sha256 | sha256sum --check
+      - run: node --test test/*.test.ts
+      - run: deno publish --dry-run
+      - run: deno doc --lint src/mod.ts src/codec.ts

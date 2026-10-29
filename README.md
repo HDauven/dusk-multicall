@@ -55,6 +55,42 @@ another read's result (the multicall can't feed one reply into the next call's
 argument), or when the answer should be compact and already checked. The
 multicall returns every raw reply.
 
+## JavaScript client
+
+[`@hdauven/dusk-multicall`](https://jsr.io/@hdauven/dusk-multicall), in `js/`,
+sends the contract reads a JavaScript client makes in one task as one
+`aggregate` query. It encodes the envelope itself, has no dependencies and
+runs in browsers, extension service workers, Node, Deno, Bun and Cloudflare
+Workers.
+
+```sh
+npx jsr add @hdauven/dusk-multicall    # or: deno add jsr:@hdauven/dusk-multicall
+```
+
+```js
+import { createMulticallFetch, MULTICALL_CONTRACT_ID } from '@hdauven/dusk-multicall'
+
+const nodeUrl = 'https://testnet.nodes.dusk.network'
+const fetch = createMulticallFetch({ nodeUrl, multicallId: MULTICALL_CONTRACT_ID })
+const transfer = '01'.padEnd(64, '0')
+const read = (fnName) =>
+  fetch(`${nodeUrl}/on/contracts:${transfer}/${fnName}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/octet-stream' },
+    body: new Uint8Array(),
+  })
+
+// Two reads in one task: one query, and each response is the one a direct read gets.
+const [notes, root] = await Promise.all([read('num_notes'), read('root')])
+```
+
+The options are `nodeUrl`; `multicallId`, `null` on a network without the
+multicall; `fetch`; `gasFor`, a read's gas limit, `0n` for a fair share;
+`maxBatch`, 32 reads by default; and `replyEstimate`, the reply size a read is
+planned for until one was seen. A read that runs out of its share of gas is
+sent again alone, and the reads of a query that fails whole are sent alone.
+[`js/README.md`](js/README.md) has the rest.
+
 ## Using it from a client
 
 Use [w3sper](https://jsr.io/@dusk/w3sper) and run every data driver on the

@@ -1,2 +1,4 @@
 /target
 /e2e/run
+/js/dist
+/js/node_modules

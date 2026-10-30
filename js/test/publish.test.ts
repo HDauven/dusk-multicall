@@ -8,8 +8,10 @@ import { join } from 'node:path'
 import { test } from 'node:test'
 
 const workflow = readFileSync(new URL('../../.github/workflows/publish-js.yml', import.meta.url), 'utf8')
-// The step's script: the block under its `run: |`, to the end of the file.
-const block = workflow.slice(workflow.indexOf('run: |', workflow.indexOf('- name: Publish to JSR with provenance')))
+// The step's script: the block under its `run: |`, up to the next step.
+const start = workflow.indexOf('run: |', workflow.indexOf('- name: Publish to JSR with provenance'))
+const next = workflow.indexOf('\n      - ', start)
+const block = workflow.slice(start, next === -1 ? undefined : next)
 const script = block.split('\n').slice(1).map((line) => line.slice(10)).join('\n')
 
 type Attempt = { out: string; code: number }

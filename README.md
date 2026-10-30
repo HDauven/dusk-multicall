@@ -57,14 +57,15 @@ multicall returns every raw reply.
 
 ## JavaScript client
 
-[`@hdauven/dusk-multicall`](https://jsr.io/@hdauven/dusk-multicall), in `js/`,
+[`@heindauven/dusk-multicall`](https://www.npmjs.com/package/@heindauven/dusk-multicall) on npm,
+[`@hdauven/dusk-multicall`](https://jsr.io/@hdauven/dusk-multicall) on JSR, in `js/`,
 sends the contract reads a JavaScript client makes in one task as one
 `aggregate` query. It encodes the envelope itself, has no dependencies and
 runs in browsers, extension service workers, Node, Deno, Bun and Cloudflare
 Workers.
 
 ```sh
-npx jsr add @hdauven/dusk-multicall    # or: deno add jsr:@hdauven/dusk-multicall
+npm install @heindauven/dusk-multicall    # or: npx jsr add @hdauven/dusk-multicall
 ```
 
 ```js

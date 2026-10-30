@@ -17,18 +17,20 @@ request's I/O to another.
 
 ## Install
 
+From npm:
+
+```sh
+npm install @heindauven/dusk-multicall
+```
+
+From JSR:
+
 ```sh
 deno add jsr:@hdauven/dusk-multicall
 npx jsr add @hdauven/dusk-multicall
 ```
 
-With npm alone, point the `@jsr` scope at JSR's registry and install the
-package under its npm name:
-
-```sh
-echo '@jsr:registry=https://npm.jsr.io' >> .npmrc
-npm install @hdauven/dusk-multicall@npm:@jsr/hdauven__dusk-multicall
-```
+It's the same code under two names: `@heindauven/dusk-multicall` on npm, built to JavaScript with its type declarations, and `@hdauven/dusk-multicall` on JSR. The examples below use the JSR name; with npm, import `@heindauven/dusk-multicall` and `@heindauven/dusk-multicall/codec`.
 
 ## Example
 

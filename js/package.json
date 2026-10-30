@@ -1,0 +1,35 @@
+{
+  "name": "@heindauven/dusk-multicall",
+  "version": "0.1.1",
+  "description": "A JavaScript client for Multicall for Dusk: the contract reads of one task as one aggregate query, each answered at the same block.",
+  "license": "MIT",
+  "type": "module",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/HDauven/dusk-multicall.git",
+    "directory": "js"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/mod.d.ts",
+      "default": "./dist/mod.js"
+    },
+    "./codec": {
+      "types": "./dist/codec.d.ts",
+      "default": "./dist/codec.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist/",
+    "CHANGELOG.md"
+  ],
+  "sideEffects": false,
+  "engines": {
+    "node": ">=20.10"
+  },
+  "scripts": {
+    "build": "npx --yes --package=typescript@5.9.3 -- tsc -p tsconfig.build.json && node scripts/npm-dist.mjs",
+    "test": "node --test test/*.test.ts"
+  }
+}

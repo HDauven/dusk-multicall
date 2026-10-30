@@ -35,3 +35,7 @@ jobs:
       - run: node --test test/*.test.ts
       - run: deno publish --dry-run
       - run: deno doc --lint src/mod.ts src/codec.ts
+      # What npm gets: built, importable by its name, with its types.
+      - run: npm run build
+      - run: node --input-type=module -e "import { createMulticallFetch } from '@heindauven/dusk-multicall'; import { encodeAggregate } from '@heindauven/dusk-multicall/codec'; if (typeof createMulticallFetch !== 'function' || typeof encodeAggregate !== 'function') process.exit(1)"
+      - run: npm pack --dry-run

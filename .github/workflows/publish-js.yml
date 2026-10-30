@@ -64,11 +64,8 @@ jobs:
       # npm gets the same code built to JavaScript with its type declarations.
       - name: Build for npm
         run: npm run build
-      # npm trusts this workflow (trusted publishing) once the package exists.
+      # npm trusts this workflow (trusted publishing), so no token is needed.
       - name: Publish @heindauven/dusk-multicall to npm
-        env:
-          # Only for the first publish, before npm trusts this workflow.
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: |
           version=$(node -p "require('./package.json').version")
           if npm view "@heindauven/dusk-multicall@${version}" version >/dev/null 2>&1; then

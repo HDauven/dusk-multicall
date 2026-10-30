@@ -6,7 +6,7 @@ on:
 
 permissions:
   contents: read
-  id-token: write # JSR authenticates this repository through OIDC
+  id-token: write # JSR and npm authenticate this repository through OIDC
 
 jobs:
   publish:
@@ -19,11 +19,14 @@ jobs:
       - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
         with:
           node-version: 24
+          registry-url: https://registry.npmjs.org
       - uses: denoland/setup-deno@22d081ff2d3a40755e97629de92e3bcbfa7cf2ed # v2.0.5
         with:
           deno-version: 2.9.7
-      - name: Tag matches jsr.json
-        run: test "$GITHUB_REF_NAME" = "js-v$(node -p "require('./jsr.json').version")"
+      - name: Tag matches jsr.json and package.json
+        run: |
+          test "$GITHUB_REF_NAME" = "js-v$(node -p "require('./jsr.json').version")"
+          test "$GITHUB_REF_NAME" = "js-v$(node -p "require('./package.json').version")"
       - name: Fetch the data driver
         working-directory: .
         run: |
@@ -58,3 +61,18 @@ jobs:
             [ "$attempt" -lt 5 ] && sleep 15
           done
           exit 1
+      # npm gets the same code built to JavaScript with its type declarations.
+      - name: Build for npm
+        run: npm run build
+      # npm trusts this workflow (trusted publishing) once the package exists.
+      - name: Publish @heindauven/dusk-multicall to npm
+        env:
+          # Only for the first publish, before npm trusts this workflow.
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          version=$(node -p "require('./package.json').version")
+          if npm view "@heindauven/dusk-multicall@${version}" version >/dev/null 2>&1; then
+            echo "npm already has @heindauven/dusk-multicall@${version}"
+          else
+            npm publish --provenance --access public
+          fi
